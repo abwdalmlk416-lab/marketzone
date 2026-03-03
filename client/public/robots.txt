@@ -1,0 +1,37 @@
+# MarketZone Robots.txt
+# https://www.marketzone.com
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://www.marketzone.com/sitemap.xml
+
+# Crawl-delay (optional, for polite crawling)
+Crawl-delay: 1
+
+# Block common non-content paths
+Disallow: /api/
+Disallow: /auth
+Disallow: /seller/dashboard
+Disallow: /driver/dashboard
+Disallow: /admin/dashboard
+
+# Googlebot specific
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 1
+
+# Bingbot
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+# Applebot
+User-agent: Applebot
+Allow: /
+
+# Twitterbot
+User-agent: Twitterbot
+Allow: /
+

@@ -1,0 +1,174 @@
+Build an ultra-scalable enterprise marketplace platform named MarketZone.
+
+Target Market:
+Iraq local marketplace ecosystem.
+
+Initial Launch City:
+Fallujah.
+
+Future Expansion:
+All Iraqi cities.
+
+---
+
+SYSTEM DESIGN REQUIREMENTS (Very Important):
+
+The platform must be built as a real enterprise system.
+
+---
+
+1) Microservice Ready Architecture
+
+Structure:
+
+/api
+/auth
+/stores
+/products
+/orders
+/delivery
+/admin
+/analytics
+
+Use modular architecture.
+
+---
+
+2) Advanced Authentication System
+
+Implement:
+
+- Email / Phone login
+- OTP verification
+- JWT Access Token
+- Refresh Token rotation
+- Session management
+- Device login monitoring
+
+Security:
+- Rate limiting
+- Brute force protection
+
+---
+
+3) Marketplace Multi-Vendor System
+
+Users can:
+
+Customers:
+- Browse stores
+- Order products
+- Track delivery
+
+Sellers:
+- Create store requests
+- Manage inventory
+- View analytics
+
+Drivers:
+- Accept delivery tasks
+- Update live location
+
+Admins:
+- Platform control
+- Seller approval
+
+---
+
+4) Intelligent Store Approval System
+
+Store Flow:
+
+Register seller
+↓
+Request store creation
+↓
+Admin review
+↓
+Approve / Reject
+
+Store must be approved before selling.
+
+---
+
+5) AI-Ready Analytics System
+
+Store analytics must track:
+
+- Orders per day
+- Revenue statistics
+- Delivery performance
+- Customer behavior
+
+Prepare database for future AI integration.
+
+---
+
+6) Smart Delivery Routing System
+
+Implement:
+
+- Nearest driver detection
+- Workload balancing
+- Delivery ETA estimation
+
+Use:
+Haversine distance + routing optimization.
+
+---
+
+7) Real Time System
+
+Use:
+Socket.io or WebSocket.
+
+Real-time features:
+
+- Order status updates
+- Driver movement tracking
+- Live notifications
+
+---
+
+8) Payment System
+
+Initially support:
+Cash on Delivery.
+
+Prepare architecture for future:
+Online payment gateways.
+
+---
+
+9) Database Design
+
+Tables:
+
+users
+stores
+products
+orders
+transactions
+delivery_tracking
+analytics_logs
+
+Use relational integrity.
+
+---
+
+10) Security Enterprise Level
+
+Protect against:
+
+- SQL Injection
+- XSS
+- Unauthorized API access
+- Data tampering
+
+---
+
+Return:
+Full production architecture
+Backend code examples
+Database schema
+Scaling recommendations
