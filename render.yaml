@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: marketzone
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        value: marketzone-prod-secret-2024
+
