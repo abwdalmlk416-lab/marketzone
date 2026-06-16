@@ -8,7 +8,7 @@ export function useStoreAnalytics(storeId: number) {
       const url = buildUrl(api.analytics.getStoreStats.path, { id: storeId });
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch store analytics");
-      return await res.json() as { totalOrders: number, totalRevenue: number };
+      return await res.json() as { totalOrders: number, totalRevenue: number, ordersByStatus: Record<string, number>, weeklyRevenue: { name: string, revenue: number }[] };
     }
   });
 }
@@ -19,7 +19,7 @@ export function usePlatformAnalytics() {
     queryFn: async () => {
       const res = await fetch(api.analytics.getPlatformStats.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch platform analytics");
-      return await res.json() as { totalStores: number, pendingStores: number, totalOrders: number, totalRevenue: number };
+      return await res.json() as { totalStores: number, pendingStores: number, totalOrders: number, totalRevenue: number, totalUsers: number };
     }
   });
 }

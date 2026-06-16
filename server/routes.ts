@@ -223,6 +223,71 @@ export async function registerRoutes(
     res.json(stats);
   });
 
+  // Ratings
+  app.post("/api/ratings", async (req, res) => {
+    try {
+      const user = (req.session as any)?.user;
+      if (!user) return res.status(401).json({ message: "غير مصرح" });
+      const rating = await storage.createRating({ ...req.body, customerId: user.id });
+      res.status(201).json(rating);
+    } catch (err) {
+      res.status(500).json({ message: "خطأ في الخادم" });
+    }
+  });
+
+  app.get("/api/ratings", async (req, res) => {
+    const productId = req.query.productId ? Number(req.query.productId) : undefined;
+    const storeId = req.query.storeId ? Number(req.query.storeId) : undefined;
+    const ratingsList = await storage.getRatings({ productId, storeId });
+    res.json(ratingsList);
+  });
+
+  app.get("/api/ratings/avg", async (req, res) => {
+    const productId = req.query.productId ? Number(req.query.productId) : undefined;
+    const storeId = req.query.storeId ? Number(req.query.storeId) : undefined;
+    const average = await storage.getAverageRating({ productId, storeId });
+    res.json({ average });
+  });
+
+  // Coupons
+  app.post("/api/coupons", async (req, res) => {
+    try {
+      const user = (req.session as any)?.user;
+      if (!user || (user.role !== "seller" && user.role !== "admin")) {
+        return res.status(403).json({ message: "غير مصرح" });
+      }
+      const couponData = { ...req.body, code: req.body.code?.toUpperCase() };
+      const coupon = await storage.createCoupon(couponData);
+      res.status(201).json(coupon);
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        return res.status(400).json({ message: "الكود مستخدم مسبقاً" });
+      }
+      res.status(500).json({ message: "خطأ في الخادم" });
+    }
+  });
+
+  app.get("/api/coupons/validate/:code", async (req, res) => {
+    const coupon = await storage.getCouponByCode(req.params.code);
+    if (!coupon) return res.status(404).json({ message: "الكوبون غير موجود" });
+    if (!coupon.isActive) return res.status(400).json({ message: "الكوبون غير نشط" });
+    if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+      return res.status(400).json({ message: "انتهت صلاحية الكوبون" });
+    }
+    if (coupon.usageCount !== null && coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+      return res.status(400).json({ message: "تم استنفاد استخدامات الكوبون" });
+    }
+    res.json(coupon);
+  });
+
+  app.get("/api/coupons", async (req, res) => {
+    const user = (req.session as any)?.user;
+    if (!user) return res.status(401).json({ message: "غير مصرح" });
+    const storeId = req.query.storeId ? Number(req.query.storeId) : undefined;
+    const couponsList = await storage.getCoupons(storeId);
+    res.json(couponsList);
+  });
+
   // Seed DB Function
   async function seedDatabase() {
     try {

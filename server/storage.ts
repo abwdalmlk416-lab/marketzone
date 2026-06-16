@@ -1,12 +1,14 @@
 import { db } from "./db";
-import { 
-  users, stores, products, orders, deliveryTracking,
+import {
+  users, stores, products, orders, deliveryTracking, ratings, coupons,
   type User, type Store, type Product, type Order, type DeliveryTracking,
   type CreateUserRequest, type UpdateUserRequest,
   type CreateStoreRequest, type UpdateStoreRequest,
   type CreateProductRequest, type UpdateProductRequest,
   type CreateOrderRequest, type UpdateOrderRequest,
-  type UpdateDeliveryTrackingRequest
+  type UpdateDeliveryTrackingRequest,
+  type Rating, type CreateRatingRequest,
+  type Coupon, type CreateCouponRequest
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 
@@ -41,8 +43,19 @@ export interface IStorage {
   getDeliveryLocation(orderId: number): Promise<DeliveryTracking | undefined>;
 
   // Analytics
-  getStoreStats(storeId: number): Promise<{ totalOrders: number, totalRevenue: number }>;
-  getPlatformStats(): Promise<{ totalStores: number, pendingStores: number, totalOrders: number, totalRevenue: number }>;
+  getStoreStats(storeId: number): Promise<{ totalOrders: number, totalRevenue: number, ordersByStatus: Record<string, number>, weeklyRevenue: { name: string, revenue: number }[] }>;
+  getPlatformStats(): Promise<{ totalStores: number, pendingStores: number, totalOrders: number, totalRevenue: number, totalUsers: number }>;
+
+  // Ratings
+  createRating(rating: CreateRatingRequest): Promise<Rating>;
+  getRatings(params: { productId?: number, storeId?: number }): Promise<Rating[]>;
+  getAverageRating(params: { productId?: number, storeId?: number }): Promise<number>;
+
+  // Coupons
+  createCoupon(coupon: CreateCouponRequest): Promise<Coupon>;
+  getCouponByCode(code: string): Promise<Coupon | undefined>;
+  incrementCouponUsage(id: number): Promise<void>;
+  getCoupons(storeId?: number): Promise<Coupon[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -187,23 +200,90 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Analytics
-  async getStoreStats(storeId: number): Promise<{ totalOrders: number, totalRevenue: number }> {
+  async getStoreStats(storeId: number): Promise<{ totalOrders: number, totalRevenue: number, ordersByStatus: Record<string, number>, weeklyRevenue: { name: string, revenue: number }[] }> {
     const storeOrders = await db.select().from(orders).where(eq(orders.storeId, storeId));
     const totalOrders = storeOrders.length;
     const totalRevenue = storeOrders.reduce((sum, order) => sum + parseFloat(order.totalAmount as string), 0);
-    return { totalOrders, totalRevenue };
+
+    const ordersByStatus: Record<string, number> = {};
+    storeOrders.forEach(o => {
+      ordersByStatus[o.status] = (ordersByStatus[o.status] || 0) + 1;
+    });
+
+    const dayNames = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const weeklyRevenue = dayNames.map(name => ({ name, revenue: 0 }));
+    storeOrders.forEach(o => {
+      if (o.createdAt) {
+        const dayIndex = new Date(o.createdAt).getDay();
+        weeklyRevenue[dayIndex].revenue += parseFloat(o.totalAmount as string);
+      }
+    });
+
+    return { totalOrders, totalRevenue, ordersByStatus, weeklyRevenue };
   }
 
-  async getPlatformStats(): Promise<{ totalStores: number, pendingStores: number, totalOrders: number, totalRevenue: number }> {
+  async getPlatformStats(): Promise<{ totalStores: number, pendingStores: number, totalOrders: number, totalRevenue: number, totalUsers: number }> {
     const allStores = await db.select().from(stores);
     const allOrders = await db.select().from(orders);
-    
+    const allUsers = await db.select().from(users);
+
     const totalStores = allStores.length;
     const pendingStores = allStores.filter(s => s.status === 'pending').length;
     const totalOrders = allOrders.length;
     const totalRevenue = allOrders.reduce((sum, order) => sum + parseFloat(order.totalAmount as string), 0);
-    
-    return { totalStores, pendingStores, totalOrders, totalRevenue };
+    const totalUsers = allUsers.length;
+
+    return { totalStores, pendingStores, totalOrders, totalRevenue, totalUsers };
+  }
+
+  // Ratings
+  async createRating(rating: CreateRatingRequest): Promise<Rating> {
+    const [newRating] = await db.insert(ratings).values(rating).returning();
+    return newRating;
+  }
+
+  async getRatings(params: { productId?: number, storeId?: number }): Promise<Rating[]> {
+    if (params.productId) {
+      return await db.select().from(ratings).where(eq(ratings.productId, params.productId));
+    }
+    if (params.storeId) {
+      return await db.select().from(ratings).where(eq(ratings.storeId, params.storeId));
+    }
+    return await db.select().from(ratings);
+  }
+
+  async getAverageRating(params: { productId?: number, storeId?: number }): Promise<number> {
+    let result;
+    if (params.productId) {
+      result = await db.select({ avg: sql<string>`AVG(${ratings.rating})` }).from(ratings).where(eq(ratings.productId, params.productId));
+    } else if (params.storeId) {
+      result = await db.select({ avg: sql<string>`AVG(${ratings.rating})` }).from(ratings).where(eq(ratings.storeId, params.storeId));
+    } else {
+      return 0;
+    }
+    return result[0]?.avg ? parseFloat(result[0].avg) : 0;
+  }
+
+  // Coupons
+  async createCoupon(coupon: CreateCouponRequest): Promise<Coupon> {
+    const [newCoupon] = await db.insert(coupons).values(coupon).returning();
+    return newCoupon;
+  }
+
+  async getCouponByCode(code: string): Promise<Coupon | undefined> {
+    const [coupon] = await db.select().from(coupons).where(eq(coupons.code, code.toUpperCase()));
+    return coupon;
+  }
+
+  async incrementCouponUsage(id: number): Promise<void> {
+    await db.update(coupons).set({ usageCount: sql`${coupons.usageCount} + 1` }).where(eq(coupons.id, id));
+  }
+
+  async getCoupons(storeId?: number): Promise<Coupon[]> {
+    if (storeId) {
+      return await db.select().from(coupons).where(eq(coupons.storeId, storeId));
+    }
+    return await db.select().from(coupons);
   }
 }
 
