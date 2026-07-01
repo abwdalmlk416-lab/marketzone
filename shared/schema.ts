@@ -86,6 +86,34 @@ export type UpdateOrderRequest = Partial<CreateOrderRequest>;
 
 export type UpdateDeliveryTrackingRequest = z.infer<typeof insertDeliveryTrackingSchema>;
 
+export const ratings = pgTable("ratings", {
+  id: serial("id").primaryKey(),
+  customerId: integer("customer_id").notNull(),
+  productId: integer("product_id"),
+  storeId: integer("store_id"),
+  rating: integer("rating").notNull(), // 1-5
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertRatingSchema = createInsertSchema(ratings).omit({ id: true, createdAt: true });
+export type Rating = typeof ratings.$inferSelect;
+export type CreateRatingRequest = z.infer<typeof insertRatingSchema>;
+
+export const coupons = pgTable("coupons", {
+  id: serial("id").primaryKey(),
+  code: text("code").notNull().unique(),
+  discount: numeric("discount", { precision: 5, scale: 2 }).notNull(), // percentage 0-100
+  storeId: integer("store_id"), // null = platform-wide
+  isActive: boolean("is_active").default(true),
+  usageLimit: integer("usage_limit").default(100),
+  usageCount: integer("usage_count").default(0),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const insertCouponSchema = createInsertSchema(coupons).omit({ id: true, createdAt: true, usageCount: true });
+export type Coupon = typeof coupons.$inferSelect;
+export type CreateCouponRequest = z.infer<typeof insertCouponSchema>;
+
 // Auth requests
 export const loginSchema = z.object({
   emailOrPhone: z.string(),

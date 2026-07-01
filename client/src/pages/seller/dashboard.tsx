@@ -5,15 +5,16 @@ import { useStores, useCreateStore } from "@/hooks/use-stores";
 import { useProducts, useCreateProduct } from "@/hooks/use-products";
 import { useOrders, useUpdateOrderStatus } from "@/hooks/use-orders";
 import { useStoreAnalytics } from "@/hooks/use-analytics";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/status-badge";
-import { Store as StoreIcon, Package, DollarSign, Clock, Plus, Settings } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Store as StoreIcon, Package, DollarSign, Clock, Plus, Settings, Tag, Percent } from "lucide-react";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { useToast } from "@/hooks/use-toast";
 
 export default function SellerDashboard() {
   const { user } = useAuth();
@@ -98,9 +99,51 @@ function ActiveStoreDashboard({ storeId, storeName }: { storeId: number, storeNa
   const { mutate: updateStatus } = useUpdateOrderStatus();
   const { mutateAsync: createProduct, isPending: isAddingProduct } = useCreateProduct();
   const [isDialogOpen, setDialogOpen] = useState(false);
+  const [isCouponDialogOpen, setCouponDialogOpen] = useState(false);
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const { toast } = useToast();
 
   // Filter orders related to this store only (if backend didn't)
   const storeOrders = orders?.filter(o => o.storeId === storeId) || [];
+
+  // Load coupons
+  useEffect(() => {
+    fetch(`/api/coupons?storeId=${storeId}`, { credentials: "include" })
+      .then(r => r.json())
+      .then(data => Array.isArray(data) && setCoupons(data))
+      .catch(() => {});
+  }, [storeId, isCouponDialogOpen]);
+
+  const handleCreateCoupon = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    try {
+      const res = await fetch("/api/coupons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          code: (fd.get("code") as string).toUpperCase(),
+          discount: fd.get("discount") as string,
+          storeId,
+          isActive: true,
+          usageLimit: parseInt(fd.get("usageLimit") as string) || 100,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast({ title: "خطأ", description: err.message, variant: "destructive" });
+      } else {
+        toast({ title: "تم إنشاء الكوبون", description: "تم إنشاء كوبون الخصم بنجاح!" });
+        (e.target as HTMLFormElement).reset();
+        const updated = await fetch(`/api/coupons?storeId=${storeId}`, { credentials: "include" });
+        const data = await updated.json();
+        Array.isArray(data) && setCoupons(data);
+      }
+    } catch {
+      toast({ title: "خطأ", description: "فشل في إنشاء الكوبون", variant: "destructive" });
+    }
+  };
 
   const handleAddProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -248,22 +291,110 @@ function ActiveStoreDashboard({ storeId, storeName }: { storeId: number, storeNa
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-right">مخزون المنتجات</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {products?.map(p => (
-              <div key={p.id} className="border rounded-lg p-3 flex flex-col gap-2 relative group text-right">
-                 <p className="font-semibold text-sm truncate">{p.name}</p>
-                 <div className="flex justify-between text-sm">
-                   <span className="text-primary">${parseFloat(p.price as string).toFixed(2)}</span>
-                   <span className="text-muted-foreground">المخزون: {p.stock}</span>
-                 </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-right">مخزون المنتجات</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {products?.map(p => (
+                <div key={p.id} className="border rounded-lg p-3 flex flex-col gap-2 relative group text-right">
+                   <p className="font-semibold text-sm truncate">{p.name}</p>
+                   <div className="flex justify-between text-sm">
+                     <span className="text-primary">${parseFloat(p.price as string).toFixed(2)}</span>
+                     <span className="text-muted-foreground">المخزون: {p.stock}</span>
+                   </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {analytics?.ordersByStatus && Object.keys(analytics.ordersByStatus).length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-right">الطلبات حسب الحالة</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={Object.entries(analytics.ordersByStatus).map(([status, count]) => ({ status, count }))}
+                    margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="status" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                    <Bar dataKey="count" name="الطلبات" radius={[4, 4, 0, 0]} fill="hsl(var(--primary))" />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Coupons Section */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between border-b">
+          <Dialog open={isCouponDialogOpen} onOpenChange={setCouponDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline"><Plus className="w-4 h-4 ml-1" /> كوبون جديد</Button>
+            </DialogTrigger>
+            <DialogContent dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-right">إنشاء كوبون خصم</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateCoupon} className="space-y-4 text-right">
+                <div>
+                  <Label>كود الخصم</Label>
+                  <Input name="code" required placeholder="مثال: SAVE20" className="text-right uppercase" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>نسبة الخصم (%)</Label>
+                    <Input name="discount" type="number" min="1" max="100" required className="text-right" />
+                  </div>
+                  <div>
+                    <Label>حد الاستخدام</Label>
+                    <Input name="usageLimit" type="number" defaultValue="100" className="text-right" />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full">إنشاء الكوبون</Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <CardTitle className="text-right flex items-center gap-2">
+            كوبونات الخصم
+            <Tag className="w-5 h-5 text-primary" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {coupons.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">لا توجد كوبونات. أنشئ أول كوبون خصم!</div>
+          ) : (
+            <div className="divide-y">
+              {coupons.map(c => (
+                <div key={c.id} className="p-4 flex justify-between items-center hover:bg-muted/20 text-right">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${c.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                      {c.isActive ? 'نشط' : 'غير نشط'}
+                    </span>
+                    <span className="text-sm text-muted-foreground">{c.usageCount}/{c.usageLimit} استخدام</span>
+                  </div>
+                  <div>
+                    <p className="font-mono font-bold text-primary">{c.code}</p>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                      <Percent className="w-3 h-3" />
+                      خصم {parseFloat(c.discount).toFixed(0)}%
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

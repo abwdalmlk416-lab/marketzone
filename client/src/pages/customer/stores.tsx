@@ -1,18 +1,35 @@
 import { Layout } from "@/components/layout";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useStores } from "@/hooks/use-stores";
+import { useProducts } from "@/hooks/use-products";
 import { Card, CardContent } from "@/components/ui/card";
 import { Building2, Search, ArrowRight } from "lucide-react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 
 export default function CustomerStores() {
   const { data: stores, isLoading } = useStores();
+  const { data: allProducts } = useProducts();
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   const activeStores = stores?.filter(s => s.status === "approved") || [];
-  const filtered = activeStores.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
+
+  // Gather all unique categories from products
+  const allCategories = Array.from(new Set((allProducts || []).map(p => p.category).filter(Boolean)));
+
+  // Get stores that have products matching the category filter
+  const storeIdsWithCategory = categoryFilter === "all"
+    ? null
+    : new Set((allProducts || []).filter(p => p.category === categoryFilter).map(p => p.storeId));
+
+  const filtered = activeStores.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = categoryFilter === "all" || (storeIdsWithCategory && storeIdsWithCategory.has(s.id));
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <ProtectedRoute allowedRoles={["customer"]}>
@@ -22,14 +39,29 @@ export default function CustomerStores() {
             <h1 className="text-3xl font-display mb-2">استكشف المتاجر</h1>
             <p className="text-muted-foreground">ابحث عن أفضل المنتجات من البائعين الموثوقين لدينا.</p>
           </div>
-          <div className="relative w-full md:w-72">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="ابحث عن المتاجر..." 
-              className="pr-9 bg-card border-border/50 focus:ring-primary/20"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="ابحث عن المتاجر..."
+                className="pr-9 bg-card border-border/50 focus:ring-primary/20"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            {allCategories.length > 0 && (
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="فئة المنتجات" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع الفئات</SelectItem>
+                  {allCategories.map(cat => (
+                    <SelectItem key={cat} value={cat!}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 
