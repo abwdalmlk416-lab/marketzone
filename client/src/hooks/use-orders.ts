@@ -36,7 +36,7 @@ export function useOrder(id: number) {
 export function useCreateOrder() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (data: CreateOrderRequest) => {
+    mutationFn: async (data: CreateOrderRequest & { couponCode?: string }) => {
       const res = await fetch(api.orders.create.path, {
         method: api.orders.create.method,
         headers: { "Content-Type": "application/json" },

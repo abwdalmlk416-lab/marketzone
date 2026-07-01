@@ -15,6 +15,7 @@ interface CouponData {
   id: number;
   code: string;
   discount: string;
+  storeId: number | null;
 }
 
 export default function Checkout() {
@@ -49,6 +50,11 @@ export default function Checkout() {
         setAppliedCoupon(null);
       } else {
         const coupon = await res.json();
+        if (coupon.storeId !== null && coupon.storeId !== storeId) {
+          setCouponError("هذا الكوبون مخصص لمتجر آخر");
+          setAppliedCoupon(null);
+          return;
+        }
         setAppliedCoupon(coupon);
         toast({ title: "تم تطبيق الكوبون", description: `خصم ${parseFloat(coupon.discount).toFixed(0)}% على طلبك!` });
       }
@@ -75,7 +81,8 @@ export default function Checkout() {
         storeId,
         totalAmount: finalTotal.toFixed(2),
         deliveryAddress: address,
-        status: "pending"
+        status: "pending",
+        couponCode: appliedCoupon?.code,
       });
       clearCart();
       setLocation(`/customer/orders/${order.id}`);

@@ -165,11 +165,15 @@ export async function registerRoutes(
 
   app.post(api.orders.create.path, async (req, res) => {
     try {
+      const couponCode = typeof req.body.couponCode === "string" ? req.body.couponCode : undefined;
       const input = api.orders.create.input.parse(req.body);
       const order = await storage.createOrder({
         ...input,
         totalAmount: input.totalAmount.toString()
       });
+      if (couponCode) {
+        storage.incrementCouponUsage(couponCode).catch(() => {});
+      }
       res.status(201).json(order);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -255,6 +259,10 @@ export async function registerRoutes(
       const user = (req.session as any)?.user;
       if (!user || (user.role !== "seller" && user.role !== "admin")) {
         return res.status(403).json({ message: "غير مصرح" });
+      }
+      const discount = parseFloat(req.body.discount);
+      if (isNaN(discount) || discount < 0 || discount > 100) {
+        return res.status(400).json({ message: "نسبة الخصم يجب أن تكون بين 0 و 100" });
       }
       const couponData = { ...req.body, code: req.body.code?.toUpperCase() };
       const coupon = await storage.createCoupon(couponData);
