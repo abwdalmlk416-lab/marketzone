@@ -1,8 +1,6 @@
 name: Deploy to Render
 
 on:
-  push:
-    branches: [claude/app-building-rswkr0, main]
   workflow_dispatch:
 
 jobs:
